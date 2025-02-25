@@ -1,0 +1,39 @@
+{
+  "name": "ghl-api-library",
+  "version": "1.0.0",
+  "description": "A comprehensive Node.js library for interacting with the GoHighLevel API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "prepare": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "example": "node examples/calendars-example.js",
+    "generate": "ts-node src/utils/generate.ts"
+  },
+  "keywords": [
+    "gohighlevel",
+    "api",
+    "client",
+    "library",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.19",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
