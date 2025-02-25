@@ -1,0 +1,130 @@
+# AI-Driven Workflow Roles and API Usage in an Insurance Agency
+
+This document outlines how different AI "agents" can handle specific parts of the customer lifecycle in an insurance agency using GoHighLevel. Each section details the agent's role, relevant API endpoints, and how processes are automated with human oversight safeguards.
+
+## 1. Lead Acquisition Agent
+
+**Role:** Captures new leads through inbound channels and outbound prospecting using GoHighLevel's Contact and Funnel tools.
+
+### API Integrations & Workflows
+
+- **Inbound Web Leads**
+  - Forms API: Captures website and funnel page submissions
+  - Contacts API: Creates/updates leads in CRM
+  - Operations: `POST /contacts`, `GET /contacts/{id}`
+
+- **Social Media Integration**
+  - Social platform webhooks/integrations
+  - Contacts API: Adds social leads with source tagging
+  - Operations: `POST /contacts` with source metadata
+
+- **Outbound Prospecting**
+  - Funnel/Website endpoints: Creates targeted landing pages
+  - Conversations/Messaging API: Sends automated welcome messages
+  - Operations: `POST /conversations/messages`
+
+### Human Oversight
+- Real-time visibility of new leads and sources
+- Tasks API creates flags for high-value leads
+- Operations: `POST /tasks` for human follow-up
+
+## 2. Pre-Appointment Nurturing Agent
+
+**Role:** Keeps leads engaged before consultations with timely reminders and educational materials.
+
+### API Integrations & Workflows
+
+- **Automated Follow-Ups**
+  - Messaging/Conversations API: Schedules personalized messages
+  - Templates API: Maintains consistent messaging
+  - Operations: `POST /conversations/messages`, `GET /templates`
+
+- **Appointment Management**
+  - Calendars/Appointment API: Manages meeting details
+  - Operations: `POST /calendars/appointments`, `PUT /calendars/appointments/{id}`
+
+- **Pipeline Management**
+  - Opportunities/Pipeline API: Updates lead stages
+  - Operations: `PUT /opportunities/{id}` to update stage
+
+- **No-Show Prevention**
+  - Tasks API: Creates escalations for unconfirmed appointments
+  - Operations: `POST /tasks` for human intervention
+
+## 3. Post-Appointment Nurturing Agent
+
+**Role:** Provides follow-up information, collects additional data, and updates CRM based on appointment outcomes.
+
+### API Integrations & Workflows
+
+- **Opportunity Updates**
+  - Opportunities API: Updates deal status in pipeline
+  - Operations: `PUT /opportunities/{id}` to mark as "Won" or "Follow-Up Needed"
+
+- **Follow-Up Campaigns**
+  - Campaigns API: Enrolls contacts in appropriate sequences
+  - Operations: `POST /campaigns/{id}/actions/addContact`
+
+- **CRM Data Enrichment**
+  - Notes API: Logs appointment information
+  - Custom Fields API: Updates contact details
+  - Operations: `POST /contacts/{id}/notes`, `PUT /contacts/{id}/custom-fields`
+
+- **Escalation System**
+  - Tasks API: Schedules human follow-up for complex cases
+  - Operations: `POST /tasks` with priority flags
+
+## 4. Client Retention & Long-Term Follow-Up Agent
+
+**Role:** Maintains client engagement over months/years through check-ins, renewals, and upsell opportunities.
+
+### API Integrations & Workflows
+
+- **Feedback Collection**
+  - Surveys API: Sends satisfaction surveys at key touchpoints
+  - Operations: `POST /surveys`, `GET /surveys/responses`
+
+- **Membership Engagement**
+  - Membership/Portal APIs: Monitors client resource usage
+  - Operations: Portal activity tracking (in development)
+
+- **Renewal & Upsell Management**
+  - Workflow/Trigger APIs: Sets up automatic touchpoints
+  - Operations: `POST /workflows/triggers` for timed sequences
+
+- **CRM Maintenance**
+  - Contacts API: Updates client information periodically
+  - Operations: `PUT /contacts/{id}` with new data points
+
+## 5. AI Orchestration Manager
+
+**Role:** Coordinates all specialized agents and provides a chat interface for human staff interaction.
+
+### API Integrations & Workflows
+
+- **Centralized Analytics**
+  - Reporting/Dashboard endpoints: Aggregates performance metrics
+  - Operations: `GET /reports/campaigns`, `GET /reports/opportunities`
+
+- **Chat-Based Data Access**
+  - Multiple APIs: Fetches data based on natural language queries
+  - Operations: Various GET requests across APIs
+
+- **Cross-Department Automation**
+  - Workflow API: Triggers actions based on business rules
+  - Custom Trigger endpoints: Creates conditional automations
+  - Operations: `POST /workflows/triggers/custom`
+
+- **Governance & Control**
+  - Logging endpoints: Records all AI actions
+  - Override mechanisms: Allows humans to pause/modify workflows
+  - Operations: `PUT /workflows/{id}/actions/pause`
+
+## Implementation Best Practices
+
+1. Start with simple, well-defined automation tasks
+2. Implement review checkpoints for AI-generated content
+3. Create monitoring dashboards for all automated processes
+4. Maintain comprehensive logging of all AI actions
+5. Ensure clear escalation paths to human team members
+6. Regularly review performance metrics and refine AI behavior

@@ -1,0 +1,460 @@
+Repository Structure and Framework Organization
+The repository is structured to provide a typed client SDK for the HighLevel (GHL) API, with clear separation of concerns between endpoint definitions, data types, and utility functions. At the root, the ghl-employee directory appears to serve as the main project (likely named for the “AI Employee” concept), containing a src folder where the core implementation resides. Inside src, there are subdirectories for generated endpoints, generated types, and utilities, which all work together to form the AI-driven marketing framework:
+src/endpoints/generated: Contains code for each API endpoint group (auto-generated from HighLevel’s OpenAPI specs). Each file corresponds to a category of endpoints (e.g. contacts, emails, social media posts, etc.), defining functions to call those endpoints. The framework is organized so that each marketing domain (contacts, social, email, etc.) has its own module. For example, we see imports for many categories like blogs, businesses, calendars, campaigns, contacts, conversations, emails, social-media-posting, and more​
+UNPKG.COM
+​
+UNPKG.COM
+. This indicates a modular structure where endpoint logic is grouped by function.
+src/types/generated: Holds TypeScript type definitions for request and response payloads associated with each endpoint category. These were generated from HighLevel’s OpenAPI v3 documentation, ensuring that the data structures (DTOs) exactly match what the API expects​
+NPMJS.COM
+. There is a corresponding type file for each endpoint group – for instance, contacts.d.ts for contacts endpoints, emails.d.ts for email template endpoints, social-media-posting.d.ts for social media, etc.​
+UNPKG.COM
+​
+UNPKG.COM
+. This separation means that whenever the AI calls an endpoint, it can rely on these types for correct data shapes (e.g. fields required to create a social post or send a message). The types also include in-line documentation from the API (for example, descriptions of fields, allowed values, examples), which helps developers understand how to use them.
+src/utils: Contains helper classes and functions that support authentication, scope management, and other common tasks. Notably, this includes support for OAuth2 and Private Integration auth flows. The utilities likely provide an OAuth client and a scopes builder. For example, the SDK features a ScopesBuilder utility for easily constructing scope strings for OAuth​
+UNPKG.COM
+. There are also definitions for handling authentication headers. We see in the code that the client can be created with either OAuth credentials or a private integration key​
+UNPKG.COM
+​
+UNPKG.COM
+. The presence of a HighLevelIntegrationClient class and a PrivateIntegrationConfig in the types confirms that the framework directly supports using a Private Integration Key instead of OAuth tokens​
+UNPKG.COM
+​
+UNPKG.COM
+. In practice, the utils will automatically attach the appropriate Authorization header (Bearer token) to requests – using the OAuth access token or the private API key as provided.
+Private Integration Key vs OAuth: The repository clearly delineates where a private integration key is used in place of OAuth. In the SDK’s creation function createHighLevelClient, you can specify an 'integration' auth type with a privateToken. This flows into a HighLevelIntegrationClient that stores the private token and uses it for authentication on each call​
+UNPKG.COM
+. The code comments provide an example of initializing the client with a private key:
+ts
+Copy
+const client = createHighLevelClient({}, 'integration', {  
+   privateToken: 'your-token',  
+   accessType: 'Agency',  
+   scopes: ['saas/company.write']  
+})
+UNPKG.COM
+In this mode, the Private Integration Key (the privateToken) is sent as the bearer token on API calls, bypassing the OAuth flow entirely. The framework still allows you to specify scopes for consistency, but notes that in a private integration “we never send off the scopes like we do in OAuth2” – the token’s permissions are predefined when it’s created​
+UNPKG.COM
+. Essentially, the code path for private integrations ensures the Authorization header is set to the private key value on every request, whereas the OAuth path would involve exchanging codes for tokens and refreshing them. The presence of both modes in the utils means the AI system can authenticate whichever way is needed: by storing a long-lived private key for direct API calls (common for agency-level integrations) or by performing OAuth2 if user consent per sub-account is required.Overall, the repository’s organization allows the AI agent to seamlessly interact with HighLevel. The ghl-employee project likely ties everything together – instantiating the client (with either OAuth or private key) and then using the generated endpoint methods to perform marketing actions. With the structure in place, we next examine the specific marketing-related endpoints.
+Marketing API Endpoints and Their Roles
+All the HighLevel API endpoints relevant to marketing automation are available under src/endpoints/generated. Each endpoint group corresponds to a marketing function or entity in the platform. Below, we break down these endpoints by category and discuss their roles in an AI-driven marketing workflow:
+Social Media Endpoints (Social Planner)
+The social media posting endpoints enable the AI to automate social media scheduling and management. These are found in the social-media-posting module. They cover connecting social accounts, creating and scheduling posts, categorizing content, and managing posting queues. Key endpoints include:
+Accounts Management: GET /social-media-posting/{locationId}/accounts to list connected social media accounts or groups (e.g. Facebook, Instagram profiles)​
+UNPKG.COM
+, and DELETE /social-media-posting/{locationId}/accounts/{id} to remove an account link​
+UNPKG.COM
+. The AI might use these to verify which social accounts are linked before attempting to post content.
+Content Categories and Tags: GET /social-media-posting/{locationId}/categories and GET /social-media-posting/{locationId}/tags provide any predefined categories or tags for posts​
+UNPKG.COM
+​
+UNPKG.COM
+. The AI could organize or tag the content it generates (for example, tagging posts by campaign or topic).
+Bulk Content via CSV: There are endpoints to upload and manage CSV files of posts (POST /social-media-posting/{locationId}/csv to upload a batch of post ideas, GET /social-media-posting/{locationId}/csv to check upload status)​
+UNPKG.COM
+. An AI could potentially generate a batch of posts and use these to upload them in bulk, though typical use might be manual.
+Posting: The core is POST /social-media-posting/{locationId}/posts which creates a new post across one or more platforms​
+UNPKG.COM
+. This endpoint allows the AI to schedule or publish content. The API description indicates it supports creating posts for all supported platforms and even customizing content per channel by calling the endpoint multiple times with different account IDs and content for each platform​
+UNPKG.COM
+. This flexibility is useful for an AI that might tailor a message to Facebook vs. Instagram. The payload will include text (often called “summary” or content), media attachments, and scheduling info. Indeed, the schema includes fields like scheduleDate, status (draft/published/scheduled), and media links. The AI can decide to post immediately or schedule for later by setting the appropriate status and schedule time.
+Post management: After creation, the AI can edit or delete posts via PUT /social-media-posting/{locationId}/posts/{id} (to edit an existing scheduled post)​
+UNPKG.COM
+ or DELETE /social-media-posting/{locationId}/posts/{id} to remove a post​
+UNPKG.COM
+. There’s also a bulk delete (POST /social-media-posting/{locationId}/posts/bulk-delete) which allows deleting up to 50 posts in one call​
+UNPKG.COM
+ – useful if the AI needed to clean up a large content queue, though typically caution is advised as noted in the docs. Additionally, POST /social-media-posting/{locationId}/posts/list retrieves posts (likely with filters like recent, scheduled, etc.)​
+UNPKG.COM
+, which the AI could use to review what’s already scheduled or to avoid duplicates.
+Role in AI Marketing: These social planner endpoints allow an AI agent to act as a social media manager – e.g. generating posts (text and images), then scheduling them across Facebook, Instagram, Google Business, etc., all via API. An AI could periodically create a content calendar and use create-post for each piece of content. It could also adjust postings (edit or delete if needed) and categorize content for tracking. The structured approach (accounts → categories/tags → posts) means the AI can be aware of the context (which business location it’s posting for, and which platforms are linked). For instance, before posting, the AI might call Get Accounts to ensure the client’s Facebook and LinkedIn are connected. Then it uses Create Post to publish the AI-generated content to those accounts. This automates social media marketing with minimal human input. The AI can even respond to platform limitations or feedback from the API (the documentation provides a link on content and rate limitations​
+UNPKG.COM
+ that the AI should respect to avoid errors).
+Email Marketing Endpoints
+HighLevel provides both email campaign capabilities and an email builder for templates. In the API, much of the email functionality is exposed via the Email Builder endpoints (found in the emails module) and the general messaging endpoints for sending. The AI can leverage these in two ways: managing content (templates) and sending out emails.
+Email Template Builder: The emails endpoints focus on creating and managing email templates that can be used in campaigns or automation. For example:
+GET /emails/builder – Fetch email templates for a given location (sub-account). The docs describe this as fetching templates by locationId​
+UNPKG.COM
+.
+POST /emails/builder – Create a new template with a given title and content​
+UNPKG.COM
+.
+POST /emails/builder/data – Update an existing template (the naming is a bit odd, but the description is “Update a template”)​
+UNPKG.COM
+.
+DELETE /emails/builder/{locationId}/{templateId} – Delete a template by ID​
+UNPKG.COM
+.
+These allow the AI to programmatically maintain a library of email content. For instance, an AI could generate a newsletter template and use create-template to save it in HighLevel​
+UNPKG.COM
+. Later, it can update that template with new AI-generated content via update-template​
+UNPKG.COM
+. By managing templates, the AI ensures consistency and reuse of content (important for brand voice).
+Email Campaigns: There is a campaigns endpoint group (legacy campaigns, predating workflows). Its functionality is limited – it appears you can GET /campaigns/ to list campaigns​
+UNPKG.COM
+, but no direct create/send via this endpoint (campaign execution is usually handled in-app or via workflows). The response includes campaign names and statuses​
+UNPKG.COM
+. The AI might use this to fetch existing campaigns (e.g. to analyze their status or to decide if it should create content for a particular campaign). However, creation of new campaigns or adding contacts to campaigns might not be exposed here (likely handled by workflows or contacts API via triggers).
+Sending Emails: To actually send an email to a lead or list, the AI would use the Conversations API (detailed under SMS below) with the appropriate channel. For sending an email, the AI would call POST /conversations/messages with type: 'Email' in the body, along with the contactId, subject, email body (as HTML or text), etc. The unified messaging endpoint “Send a new message” covers emails as well​
+UNPKG.COM
+. So, while not a dedicated “send email” endpoint, the Conversations API is how an AI can send one-off emails or even scheduled emails. Combining this with templates: the AI could fetch a template’s content (perhaps via a different endpoint or by storing content from emails API) and then send it through conversations/messages to a specific contact or list of contacts (one contactId per call, unless using workflows for bulk).
+Role in AI Marketing: These email endpoints let an AI act as an email marketer – designing emails and delivering them. For example, the AI could periodically generate a promotional email, save it as a template (so that human users can review/edit in the HighLevel UI if needed), and when it’s time, send it out via the messaging endpoint. Because templates are accessible, the AI can also pull in dynamic content or personalize messages. The structured data for emails includes fields like subject, HTML content, and support for CC/BCC and attachments in the message schema. This means the AI can handle complex email compositions. With scheduling (the scheduledTimestamp field in the message body), the AI could schedule emails for later sending as well​
+UNPKG.COM
+.
+SMS and Conversations Endpoints
+HighLevel’s Conversations API covers SMS, two-way texting, and other messaging channels (Facebook Messenger, WhatsApp, etc.) in a unified way. For an AI agent that interacts with leads via text or chat, these endpoints are crucial. They allow the AI to send messages, read conversations, and even signal typing status in live chat.Major endpoints in the conversations module include:
+Conversations Management: POST /conversations/ creates a new conversation thread given some initial data​
+UNPKG.COM
+ (e.g. linking a contact). Typically, a conversation is auto-created when a message is sent, so the AI might not often need to call this explicitly – sending a message will create a convo if one doesn’t exist. There are also GET/PUT/DELETE on /conversations/{conversationId} to retrieve or update conversation attributes (mark as read, assign to a user, etc.)​
+UNPKG.COM
+. The AI could use these to organize conversations, perhaps assigning them to the “AI agent user” or marking them in certain ways.
+Messages within Conversations: The key endpoint is POST /conversations/messages – Send a new message​
+UNPKG.COM
+. This is used to send outbound messages of various types. The request body (schema SendMessageBodyDto) includes fields to specify the contact and message details: you provide a contactId, the content of the message, and a type indicating the channel (for example, 'SMS' for a text message or 'Email' for an email)​
+UNPKG.COM
+. Depending on type, other fields are used (for SMS you’d use fromNumber and toNumber, for Email you’d use subject, emailFrom, emailTo or rely on the contact’s email, etc.)​
+UNPKG.COM
+​
+UNPKG.COM
+. The API documentation for “Send a new message” specifically notes it’s used to send the necessary fields for the API to deliver a new message​
+UNPKG.COM
+.In an AI-driven scenario, this is how the AI sends outgoing communications: e.g. texting a lead a reminder, or emailing them a follow-up. The AI can also include attachments by first uploading files (there’s a file upload endpoint, see below) and then referencing the file URLs in the message.
+Attachments: POST /conversations/messages/upload allows uploading file attachments to the conversation (with the file content as a buffer form-data)​
+UNPKG.COM
+​
+UNPKG.COM
+. The allowed file types (JPEG, PNG, MP4, PDF, etc.) are listed in the docs​
+UNPKG.COM
+. The AI might use this to send images (perhaps an AI-generated chart or graphic) or PDFs via chat/email. The endpoint returns URLs for the uploaded files which can then be included in a message send.
+Conversation Querying: GET /conversations/{conversationId}/messages fetches all messages in a conversation thread​
+UNPKG.COM
+, allowing the AI to read the history. There’s also a search endpoint GET /conversations/search to find conversations by criteria (useful if the AI is trying to find if a contact has an ongoing conversation, etc.)​
+UNPKG.COM
+. An AI agent could use these to analyze past interactions before crafting a response, enabling continuity in conversation.
+Live Chat Utilities: Notably, there is a POST /conversations/providers/live-chat/typing endpoint – this is a “typing indicator” for live chat that the Agent/AI-bot can call to notify the system (and thus the UI) that it’s in the process of typing​
+UNPKG.COM
+. This is very useful for UI/UX: when the AI is formulating a response (perhaps calling OpenAI in the background), it can hit this endpoint to show the user “Agent is typing…” in the chat, creating a more natural, human-like pause. Using this endpoint is purely cosmetic (no content sent), but improves the realism of an AI live chat agent.
+Other messaging features: The Conversations API includes endpoints to handle call recordings and voicemail transcripts (e.g. GET transcription and download transcription by messageId​
+UNPKG.COM
+), to cancel scheduled messages (DELETE /conversations/messages/{messageId}/schedule for SMS and a similar one for email schedule​
+UNPKG.COM
+​
+UNPKG.COM
+), and to add inbound messages or external outbound calls manually (for logging purposes)​
+UNPKG.COM
+. These might be less directly used by an AI, but for completeness: if the AI needed to simulate an incoming message or log a phone call, those endpoints exist.
+Role in AI Marketing: The Conversations endpoints are the backbone for AI-driven two-way communication – such as an AI sales assistant texting a client, or an AI responding to customer chats on the website. Through a single unified API, the AI can send SMS, emails, Facebook messages, etc., just by changing the type in the payload​
+UNPKG.COM
+. For marketing automation, this means the AI can follow up on leads via their preferred channel. For example, if a new lead comes in, the AI could automatically text them a welcome message and later email them a detailed offer – all triggered and sent via these endpoints. The type definitions ensure the AI supplies the correct info: if type: 'SMS', it knows to include phone numbers; if 'Email', include a subject and maybe an HTML body, etc.The AI can also maintain context by reading conversation threads (so it doesn’t repeat questions already answered) and it can mark conversations or assign them if needed (though assignment might be a manual user decision). Importantly, since these endpoints return structured data (e.g. message IDs, conversation IDs, statuses), the AI can use that to schedule follow-ups or check if a message was delivered. The SendMessageResponseDto returns a messageId and possibly an emailMessageId for emails​
+UNPKG.COM
+, which the AI could store to track threads or to handle replies (especially for email, where it might need the emailMessageId to thread the reply correctly in the system).In summary, for SMS/Chat/Email outreach, the AI will primarily use POST /conversations/messages with the appropriate payload. It essentially gives the AI a “universal sender” capability: a single function to communicate across channels.
+Blog and Content Management Endpoints
+HighLevel has a blogging feature, and the blogs endpoints allow management of blog content on behalf of the user’s site. An AI copywriter can utilize these to generate and publish blog posts, which is a key content marketing activity.The blogs module includes endpoints for authors, categories, and posts:
+GET /blogs/authors – Retrieves all blog authors for the location (likely needed to assign an author to a post). The documentation notes this returns blog authors for a given locationId​
+UNPKG.COM
+. The AI could choose an existing author profile (or the business owner by default) when creating a post.
+GET /blogs/categories – Retrieves all blog categories for the location​
+UNPKG.COM
+. Similar to authors, this helps the AI categorize the content it creates (e.g., tagging a post as “SEO Tips” or “Industry News” if such categories exist).
+POST /blogs/posts – Create a new Blog Post​
+UNPKG.COM
+. The AI will use this to publish content. The payload (as indicated by CreateBlogPost DTO) includes all necessary details of a blog article: title, content (likely rawHTML for the body), summary/description, author, categories, tags, featured image URL and alt text, meta-data, publish date, etc.​
+UNPKG.COM
+. For example, the schema shows fields like title, canonicalLink, tags, readTimeInMinutes, and a rawHTML which contains the full blog content in HTML format​
+UNPKG.COM
+. The AI must supply a blogId (the specific blog/site to post to, if multiple) and locationId, along with an author ID and any category IDs. The response will confirm the post creation (returning perhaps the post ID and data)​
+UNPKG.COM
+.
+PUT /blogs/posts/{postId} – Update Blog Post​
+UNPKG.COM
+. If the AI wants to edit an existing post (for example, make a correction or update stats in an old blog), it can use this. The input is similar to create.
+GET /blogs/posts/url-slug-exists – Checks if a given URL slug is already taken​
+UNPKG.COM
+. This is a helper endpoint the AI can use before publishing to ensure the slug (part of the post URL) is unique. The docs encourage using this to validate slugs before publishing. The AI could generate a slug from the title (“new-marketing-trends-2025”) and use this endpoint to see if it’s free, adjusting if not.
+(It’s notable that there isn’t an explicit “GET /blogs/posts` in the API for listing or retrieving a specific post by ID in this snippet, aside from checking slug. Possibly listing posts is not exposed or done via the site itself. But the provided endpoints are enough for creation and updating.)Role in AI Marketing: Content marketing is a big part of marketing automation. These blog endpoints empower the AI to act as a content writer and publisher. The AI can generate blog content (using its language model capabilities), then automatically push it to the website’s blog via create-blog-post. All the details – from SEO metadata to the body text – can be filled in by the AI following the structure provided by the CreateBlogPostParams type​
+UNPKG.COM
+. For example, the AI knows it needs to provide a description, keywords/tags, and the main HTML content. It can even estimate readTimeInMinutes or word count, or leave those to the system (some fields might be auto-calculated by HighLevel if not provided).By using categories and authors endpoints, the AI also ensures the content is properly attributed and organized, which is important for the client's branding. If a new category is needed, the API might not allow creation via these endpoints (we only see GET), so the AI might choose the closest existing category or prompt the user to create one in the UI.From an implementation standpoint, after the AI calls POST /blogs/posts, it should verify the response (successful response likely contains a data object with the new post’s details​
+UNPKG.COM
+). It can then inform the user or proceed to share that post on social media (cross-posting, which the AI could do by taking the blog link and using the social posting endpoints to share it – a holistic AI marketing step!).
+Other Marketing-Related Endpoints
+Beyond the four main categories above, the API provides many other endpoints that support a full marketing automation system. The AI can leverage these as needed:
+Contacts and Leads: The contacts endpoints (under contacts module) allow creating or updating contact records, querying contacts, etc. While the question focuses on marketing output, an AI agency system would use contact APIs to feed leads into campaigns or personalize outreach. (E.g., GET /contacts/ to search contacts, POST /contacts/ to create a new contact record programmatically.) Managing contacts is fundamental so the AI knows who to market to.
+Funnels and Forms: HighLevel offers funnels (landing pages) and forms/surveys for lead capture. The forms and surveys endpoints can fetch form submissions or perhaps create forms, and funnels might allow retrieval or publishing of pages. An AI could analyze form submission data via these endpoints to trigger certain marketing responses (for instance, if a survey indicates interest in product X, the AI could follow up with a related email).
+Opportunities (Deals) and Pipelines: The opportunities endpoints let you manage pipeline stages for leads (e.g., move a lead to “Negotiation” stage). An AI sales assistant could use this to update deal status or trigger actions when a deal is won/lost (maybe sending a congratulations email automatically when marked won).
+Calendar and Appointments: The calendars endpoints (and related scheduling in appointments) allow the AI to create or fetch appointments. For example, the AI could schedule a meeting by calling the appointments API or send reminders if an appointment is upcoming (in conjunction with the Conversations API for SMS reminders). In the v1 API snippet we saw, GET /v1/appointments/ exists​
+UNPKG.COM
+, and likely v2 has similar under calendars and calendars/events.
+Payments and Invoices: There are extensive payments and invoices APIs (as indicated by large type files). An AI could assist in sending invoice reminders or confirming payments – tasks often tied into marketing automation for upsells or renewals.
+Snapshots and SaaS (Agency Tools): snapshots endpoints are for agency-level packaging of sub-accounts, and saas-api relates to the SaaS mode (managing client accounts programmatically). An AI system that onboards new clients or replicates settings could use these, though they’re more operational than marketing. Still, for a full “AI-driven agency,” these allow automating client account setup or updates (for example, deploying a pre-built marketing funnel via a snapshot).
+Users and Teams: The users endpoints can list or manage sub-account users. Possibly not heavily used by AI, but an AI could notify a human user or adjust user roles if it had instructions to (likely not common).
+Custom menu links: The custom-menus module suggests APIs to set up custom menu items in the UI (perhaps to integrate the AI’s interface into HighLevel’s menu).
+In summary, the endpoint groups cover virtually every feature of the HighLevel platform. For an AI marketing system, the most pertinent are those dealing with outreach and content (Social Media posts, Emails, SMS/Conversations, Blogs) as we detailed, but the AI can indeed tie in other areas (schedule appointments, update CRM data, etc.) to create a cohesive automated workflow.Each endpoint is structured in the code with a consistent pattern: typically a method like .GET or .POST corresponding to an HTTP verb on a path, returning a typed response. For instance, to use an endpoint in code, one might call:
+ts
+Copy
+const { data, error } = await client.contacts.GET('/contacts/', { 
+    params: { 
+       query: { locationId: '1234567890', query: 'John Doe' }, 
+       header: { Authorization: `Bearer ${token}`, Version: '2021-07-28' } 
+    } 
+});
+This example (from the docs) shows a contacts search call​
+UNPKG.COM
+​
+UNPKG.COM
+. The Version header (API version date) is required by these endpoints as shown in the type definitions​
+UNPKG.COM
+, and the client utils often add it automatically. The AI framework likely abstracts some of this away (for private integration, the Authorization is auto-inserted, and maybe the Version as default). But understanding the endpoints’ roles helps design the AI’s behavior around them.
+Type Definitions and Data Structures (src/types/generated)
+The src/types/generated directory provides a comprehensive collection of TypeScript definitions for all API inputs and outputs. These ensure that the AI interacts with the API using correct data formats, and they serve as documentation for what data is available or required for each operation. Some notable aspects of these types:
+Request Payloads (DTOs): For every endpoint that expects a body or query params, there is a corresponding interface. For example, when sending a message, the SendMessageBodyDto defines all the possible fields the AI can/must include​
+UNPKG.COM
+​
+UNPKG.COM
+. We see it includes fields like contactId (the target contact), message (text content), html (for email content), subject (for email subject), fromNumber/toNumber (for SMS), as well as attachments (array of file URLs) and even scheduling (scheduledTimestamp). Crucially, it has a type field that enumerates the allowed message types: 'SMS' | 'Email' | 'WhatsApp' | 'GMB' | 'IG' | 'FB' | 'Custom' | 'Live_Chat'​
+UNPKG.COM
+. This explicit type union guides the AI to only use valid channels. Similarly, the CreateBlogPostParams schema lists all fields for a blog post (title, content, author, etc.)​
+UNPKG.COM
+, and the email template DTOs define fields like template title, isPlainText, builderVersion, etc.​
+UNPKG.COM
+.
+Response Objects: The types also define what the AI receives in response. For instance, after sending a message, SendMessageResponseDto gives the new messageId and possibly conversationId and other info​
+UNPKG.COM
+. For fetching things like campaigns or workflows, there are SuccessfulResponseDto types that wrap arrays of items​
+UNPKG.COM
+​
+UNPKG.COM
+. The AI can use these types to parse responses – for example, knowing that get-campaigns returns a list of campaigns with fields id, name, status​
+UNPKG.COM
+, it can iterate through them or filter by status.
+Error and Status Types: Common error structures (BadRequest, Unauthorized, Unprocessable Entity, etc.) are defined once and reused. The AI could inspect error.message or statusCode from these if something goes wrong, thanks to the typed responses.
+Webhooks payloads (if any): Although not heavily focused in the question, the presence of types for webhooks means if the AI sets up a webhook listener, it knows the exact structure of events coming in (e.g. a form submission event type, or a new contact event). This could feed the AI’s decision-making loop.
+Enumerations and constants: Some types include specific allowed values or enumerations. For example, in Social Media posts, the status field is documented to allow values like draft, published, scheduled, in_review, etc. which appear in the types (likely as a union or just documented)​
+UNPKG.COM
+​
+UNPKG.COM
+. The AI can set or check these values. Another example: emailReplyMode in SendMessageBodyDto is enum 'reply' | 'reply_all'​
+UNPKG.COM
+ – the AI will adhere to those if it ever uses that field.
+Because these types are generated from the OpenAPI spec, they carry through a lot of the documentation. Lines like “@description” in the type files give hints on usage. For instance, the types for blog post creation explicitly mention which permission scope is needed (“Please use blogs/post.write”)​
+UNPKG.COM
+. Similarly, the authors and categories endpoints mention the scope required (blogs/author.readonly, blogs/category.readonly)​
+UNPKG.COM
+. This is useful for the developer to ensure the integration (OAuth or private key) has those scopes enabled – something an AI developer must set up initially when configuring the app.In practice, when implementing the AI, these type definitions will be used by the IDE/compiler to catch mistakes. If the AI tries to call an endpoint with the wrong data (say, missing a required field or using a wrong enum), TypeScript will flag it. This significantly reduces runtime errors and makes development faster. It also makes it easier to map out what data the AI needs from its own prompt or knowledge to fulfill an action. For example, to call createHighLevelClient('integration', {...}), the PrivateIntegrationConfig type tells us we need an accessType (“Agency” or “Sub-Account”) and privateToken, plus optional scopes​
+UNPKG.COM
+.To highlight an example of how detailed these types can be, consider again the SendMessageBodyDto which the AI uses for sending communications. It shows how multi-faceted a single API call can be:
+ts
+Copy
+SendMessageBodyDto: { 
+  appointmentId?: string; 
+  attachments?: string[]; 
+  contactId: string; 
+  conversationProviderId?: string; 
+  emailBcc?: string[]; 
+  emailCc?: string[]; 
+  emailFrom?: string; 
+  emailReplyMode?: 'reply' | 'reply_all'; 
+  emailTo?: string; 
+  fromNumber?: string; 
+  html?: string; 
+  message?: string; 
+  replyMessageId?: string; 
+  scheduledTimestamp?: number; 
+  subject?: string; 
+  templateId?: string; 
+  toNumber?: string; 
+  type: 'SMS' | 'Email' | 'WhatsApp' | 'GMB' | 'IG' | 'FB' | 'Custom' | 'Live_Chat'; 
+};
+UNPKG.COM
+​
+UNPKG.COM
+From this, the AI “knows” that to send an SMS, it needs toNumber, fromNumber, and message text, with type: 'SMS'. To send an Email, it would use subject, maybe html (for rich content) or message (for plain text), set type: 'Email', and can optionally use emailCc, emailBcc for additional recipients. If it’s replying to an existing email thread, it can include replyMessageId and perhaps set emailReplyMode. If using a template, it could fill templateId and the API might then send that template’s content. All of these are at the AI’s disposal thanks to the type info.In a marketing context, such richness allows the AI to do advanced things like send a follow-up email that threads into the same conversation (using reply_all so that everyone stays CC’d, for example). The types ensure the AI provides all necessary IDs (contactId, etc.) which it might get from earlier steps (like looking up a contact by email or phone via the contacts API, then using the returned contactId in the message send).In summary, the src/types/generated gives the data contract for the AI’s actions. It’s the foundation that prevents misuse of endpoints and clarifies the capabilities of each endpoint (through field descriptions and examples). This is crucial when building a full AI-driven system – the AI logic can be mapped almost one-to-one with these structures.
+Utility Functions and Helpers (src/utils)
+The utilities in this repository provide the glue and convenience features around the raw endpoints. Key utility aspects likely include:
+Authentication and Client Setup: Functions to initialize the API client with the correct auth. For example, createHighLevelClient as seen in the index allows different modes (no auth, OAuth, or private integration)​
+UNPKG.COM
+. Under the hood, the utils configure the base URL (usually https://api.highlevel.com or a proxy like leadconnectorhq.com as seen in the default clientConfig​
+UNPKG.COM
+) and attach interceptors or defaults for headers. The HighLevelIntegrationClient constructor uses the provided privateToken to add an Authorization header for all requests​
+UNPKG.COM
+. Similarly, an HighLevelClientWithOAuth (not fully shown above, but implied) would manage OAuth token storage and refresh logic. The utils likely include methods to exchange auth codes for tokens, refresh tokens, and store tokens (the example shows a storageFunction for saving tokens to DB)​
+NPMJS.COM
+​
+NPMJS.COM
+. This means the AI framework has built-in support to handle the OAuth dance and token lifecycle, which is crucial for long-running autonomous agents.
+Scopes Builder: As mentioned, the ScopesBuilder utility helps in constructing the scope strings needed for OAuth authorization. Instead of manually typing "contacts.readonly locations.readonly calendars.write", a developer can do something like new ScopesBuilder().contactsReadonly().locationsReadonly().calendarsWrite().build(). The documentation hint shows all().join(' ') which would select all scopes​
+UNPKG.COM
+, but realistically one would pick needed scopes. There may also be predefined Scope constants or an enum of ScopeLiterals (we saw ScopeLiterals imported in type-utils​
+UNPKG.COM
+). The HighLevelScopes type likely represents an array or space-delimited string of scopes. This utility ensures the OAuth URL the AI directs the user to has exactly the permissions it needs (nothing less or more).
+API helpers: Given that the endpoints are accessed via a generic client (using openapi-fetch under the hood​
+NPMJS.COM
+), the utils might abstract some repetitive tasks. For example, constructing query parameters or properly formatting file uploads (maybe a helper to convert a file to base64 or buffer for the upload endpoint). They might also provide simplified methods for common tasks. For instance, a convenience method to send an SMS might allow client.sendSms(contactId, message) internally calling the conversations API with the right structure – this is speculative, but some SDKs add such sugar. However, since the endpoints are already pretty one-to-one, the generated code might stick to the raw .GET('/path') style calls, relying on developer to pass the right params.
+Error Handling and Retries: The SDK uses openapi-fetch, which returns { data, error } objects for each call​
+NPMJS.COM
+​
+NPMJS.COM
+. The utils might include a standardized way to log or handle errors. Perhaps they ensure that certain errors (like expired OAuth token) trigger a refresh automatically, so the AI doesn’t have to implement that each time. The presence of HighLevelClientWithOAuth suggests token management is encapsulated. The AI can simply call client.oauth.getAccessToken() and the SDK will refresh if needed​
+NPMJS.COM
+.
+Webhooks Utility: The readme mentions a createWebhooksClient​
+NPMJS.COM
+. This likely resides in src/utils (or src/webhooks). It would provide verification of webhook signatures and typing for webhook payloads. For an AI system, webhooks can be used to receive real-time events from HighLevel (like “new lead created” or “appointment booked”). The webhooks client would help parse those events into typed objects that match the src/types/generated schemas. An AI agent could then react to those events (for example, on a new lead event, automatically send a welcome message).
+General helpers: There might be miscellaneous utilities like date formatting (if needed for building queries), or mapping certain IDs. Also, possibly a utility to easily call the v1 API if needed. (We saw the package has createHighLevelV1Client for legacy API key usage​
+NPMJS.COM
+ – likely a separate part of utils to handle old API endpoints which use API Key auth and /v1/ paths. This is less relevant if focusing on AI with v2, but it’s part of the completeness of the SDK.)
+In essence, src/utils is what turns a raw API into a developer-friendly framework. When building the AI marketing system, these utils mean we can write high-level code like in the examples, without worrying about low-level HTTP details. For instance, to send an email via private integration, one might simply:
+ts
+Copy
+const client = createHighLevelClient({}, 'integration', { privateToken: API_KEY, ... });
+await client.conversations.POST('/conversations/messages', { 
+   params: { 
+      header: {/* auth handled automatically */}, 
+      body: { contactId, type: 'Email', subject: "Hello", html: "<p>Hello world!</p>" }
+   } 
+});
+The utils would ensure the Authorization: Bearer API_KEY and Version headers are added behind the scenes. This allows the AI logic to be written in a more declarative style (“send this content to that contact”) rather than constructing HTTP requests manually.Finally, the private integration key usage in utils is worth reiterating: the key advantage of using a private API key is that the AI system can operate without needing user OAuth every time (especially if this AI is meant to manage one HighLevel account or a set of agency accounts centrally). The repository’s support for it means it’s literally just a config switch to use. In code, you’d see something like:
+ts
+Copy
+if (authType === 'integration') {
+    // create HighLevelIntegrationClient
+    // store privateToken, maybe set default headers for client
+}
+and elsewhere:
+ts
+Copy
+class HighLevelIntegrationClient extends HighLevelClient {
+    constructor(integrationConfig, clientConfig) {
+       super(clientConfig);
+       this.privateToken = integrationConfig.privateToken;
+       this.scopes = integrationConfig.scopes;
+       // maybe intercept requests: this.client.onRequest = add Authorization header with privateToken
+    }
+}
+From the type definitions we have, we know the integration client is marked @internal but is used via the factory function​
+UNPKG.COM
+. It retains the privateToken and scopes for potential use. The comment explicitly notes that scopes aren’t actually sent in this mode, implying the token alone governs access​
+UNPKG.COM
+. This simplifies usage: the AI doesn’t need to manage scope tokens after the initial key creation in HighLevel – it can assume full API access as granted.
+Implementation Strategy for an AI-Driven Marketing System
+With an understanding of the repository’s structure, endpoints, and types, we can outline a step-by-step strategy to build a full AI-driven marketing agency system on top of it. The goal is to have an AI that can create content, communicate with leads, and orchestrate marketing campaigns using the framework. Here’s a structured approach:1. Initialization and Authentication:
+Begin by setting up the HighLevel API client in the AI app. Decide whether to use OAuth (if you plan to have many users connecting their own accounts via your AI, each needing consent) or a Private Integration Key (if this AI is managing a single agency’s resources or if you’ve set up a central integration for all clients under an agency). Given a “full AI-driven agency” scenario, a Private Integration might be ideal for broad access across the agency’s sub-accounts.
+Using Private Integration Key: In your configuration, store the private key securely (e.g., in environment variable). Then initialize the SDK:
+ts
+Copy
+const client = createHighLevelClient({}, 'integration', {
+    privateToken: process.env.HIGHLEVEL_PRIVATE_TOKEN!,
+    accessType: 'Agency', 
+    scopes: ['...'] // e.g., not strictly needed to send, but define for clarity
+});
+This single line sets up the client with all endpoint methods, authenticated for all agency-level and sub-account actions​
+UNPKG.COM
+. Ensure the accessType matches how the integration key was created (“Agency” keys can access agency-level data and all locations; “Sub-Account” keys are limited to one location). Once this is done, the AI can call any endpoint without worrying about login flows or token refresh.
+Using OAuth: If each user of your AI system needs to connect their HighLevel account, implement the OAuth flow using the provided helpers. Use createHighLevelClient({}, 'oauth', { clientId, clientSecret, redirectUri, scopes: [...] }). Redirect the user to client.oauth.getAuthorizationUrl()​
+NPMJS.COM
+, then on callback exchange the code for tokens via client.oauth.getAccessToken(code)​
+NPMJS.COM
+. The SDK will handle storing the token in memory; you might use storageFunction to persist it (e.g., database) so the AI can operate continuously. With a valid client (with client.setAuth(tokenData) if needed), the AI can now make authorized calls. In either case, store the Location IDs or other identifiers for the business and users you’re automating, because many endpoints require locationId either in query or as part of the path.
+UI/UX: If OAuth is used, provide a clear UI prompt for connection. If private key is used (likely only by an agency owner), ensure it’s entered securely. This setup step is critical: the rest of the AI’s actions depend on having proper API access. From a UX perspective, the connection process should be as smooth as possible – maybe a settings page where the user pastes their key or clicks “Connect to HighLevel” and goes through OAuth.
+2. Data Gathering & Context:
+Before taking actions, the AI should gather context:
+Use Contacts API (GET /contacts) to retrieve the lead/customer list​
+UNPKG.COM
+. This can feed the AI’s brain with current leads, their statuses, tags, etc. The types will show what fields each contact has (name, email, phone, custom fields). The AI might segment contacts based on this data (e.g., find all new leads from last week to send a welcome campaign).
+Use Conversations API (GET /conversations/search or by contactId) to check if there are ongoing conversations or recent messages. This prevents the AI from overlapping with human sales reps or double messaging. It can also read past conversation content to personalize responses.
+Use Campaigns/Workflows API (GET /campaigns/, GET /workflows/) to see what automations already exist​
+UNPKG.COM
+​
+UNPKG.COM
+. If the organization has active campaigns, the AI might choose to not duplicate those efforts, or conversely, it might fill gaps (the AI could create content for a campaign that exists but has no recent activity).
+Use Social Media Accounts API (GET /social-media-posting/{locationId}/accounts) to list connected social accounts​
+UNPKG.COM
+. This informs the AI which platforms it can post to. For any missing accounts (say Twitter is not connected), the AI might flag this in the UI (“Connect your Twitter account to enable Twitter posts”) rather than attempting and failing.
+Use Blog API (GET /blogs/authors, GET /blogs/categories) to fetch existing authors and categories​
+UNPKG.COM
+. Possibly also check if there’s an existing blog (if the HighLevel site/blog is set up – if blogId is needed, the AI might need that from configuration or an API call).
+This discovery phase is like the AI building a mental model of the client’s marketing assets. No content is generated yet; it’s reading data via the API. All these GET calls are straightforward with the client, and thanks to types, handling responses is easy (e.g., data.contacts will be typed as an array of Contact objects).UX Consideration: This could happen in the background when the user activates the “AI Marketing” feature. You might show a loading indicator “Analyzing your account…” The AI could also summarize findings to the user (“I see you have 120 leads and an active campaign called Summer Promo. I’ll tailor my strategy accordingly.”). This builds user trust that the AI is aware of their context.3. Planning and Scheduling (AI Decision Layer):
+With context in hand, the AI decides what actions to take. This isn’t directly about calling the repository code, but how to use it. For example, the AI may decide:
+Send a welcome email to new leads,
+Schedule social posts for the upcoming week,
+Write a blog post about a trending topic,
+Follow up via SMS with leads who clicked a link but didn’t convert,
+etc.
+Each decision maps to one or more API calls. The strength of this framework is that it offers multiple ways to achieve a goal, so the AI can choose the appropriate channel. Suppose the AI’s reasoning (from an LLM prompt) says: “We should engage leads who haven’t been contacted in 30 days.” The AI might then use the Contacts API to filter those leads, and for each, use Conversations API to send a re-engagement text or use the Workflows API to add them to a nurture workflow (if one exists). If no workflow, it could just message them directly or even create a new workflow via the UI (though API doesn’t create workflows, so likely direct messaging is the way).This planning step is where the AI’s “brain” (not part of the repository, but using its outputs) interfaces with the repository’s capabilities. It will generate content (text for emails, SMS, social posts, blog articles) and decide scheduling. From here on, we execute those plans with endpoint calls.4. Content Generation and Execution:
+For each marketing task, have the AI generate the content and then use the relevant endpoint:
+Social Post Execution: If the AI decides to schedule social posts, it will generate the text (and maybe choose an image if it has access to one or an URL). Then call POST /social-media-posting/{locationId}/posts to create the post​
+UNPKG.COM
+. It can include a scheduleDate (in ISO string as required by API) for future scheduling or leave it as immediate. If posting to multiple platforms with slight variation (as the API suggests), it could call the endpoint separately for each platform’s account ID with tailored content. After creating the posts, the AI should record the post IDs (the response will have them) and perhaps show a summary in the UI: “Scheduled 3 posts (Facebook, Instagram, Google My Business) for next week.”
+If images are involved, the AI should first call the Media Library or Upload endpoint. The API listing shows a medias endpoint (likely for the media library) and the conversation upload we discussed for attachments. HighLevel might have a specific media upload for social posts, but if not, the conversation upload might not directly tie into social posts. Alternatively, the create-post operation might accept media URLs (like an image URL hosted somewhere). The AI can utilize an external image hosting or ensure the image is accessible via URL.
+UI/UX: Provide a content preview to the user if possible (e.g., show the text of posts the AI scheduled, and allow them to cancel via the app if needed – the AI could listen for a user cancellation and then call the DELETE post endpoint to remove it).
+Email Sending Execution: For sending out an email blast or individual emails:
+If using Workflows or Campaigns: HighLevel typically would send emails via a campaign or workflow for bulk. Since the API doesn’t directly support “start campaign” or “enqueue contact in workflow” (beyond adding a contact and the workflow might have trigger on contact tag or so), the AI might stick to directly messaging contacts. For a bulk email to many contacts, the AI could loop through contacts and call POST /conversations/messages for each with type Email. This is fine for reasonably sized lists but could be rate-limited for huge lists (in which case, breaking into batches or leveraging HighLevel campaign (which currently isn’t exposed to add contacts via API) might be needed).
+If using Templates: The AI can create or update an email template via emails endpoints​
+UNPKG.COM
+ and then perhaps trigger a campaign that uses that template (if a campaign is pre-set to send that template, maybe by status=published). However, since there’s no direct API to start a campaign, a more straightforward method: have the AI fetch the template content (GET /emails/builder to get template HTML) and then include it in the message body for each contact. The template endpoints ensure the AI’s content is saved in the system (so the user can see it later in the HighLevel UI’s Email Builder).
+For transactional or individualized emails (like “send a proposal to John Doe”), the AI can do a single conversations/messages send to that contactId with a tailored message. It can personalize the content on the fly since it likely has the contact’s name and info (either from contact fields or its own records).
+Follow-ups: If an email is part of a series, the AI might schedule follow-ups. HighLevel’s API allows scheduling a message by setting scheduledTimestamp in the message body​
+UNPKG.COM
+. The AI could, for example, send an initial email now and schedule a second email 3 days later by including a future timestamp. The system will queue it, and there’s even an endpoint to cancel if needed. This is an elegant way to stagger communications without needing a workflow.
+UI/UX: For bulk actions, show progress or a summary (“Sending emails to 50 contacts...”). The user might want to approve content before sending – so an interface where the AI’s generated email can be edited or confirmed by a human would be wise. If integrated, the AI could create a draft template and prompt the user, then only send after approval. This mix of AI and user input ensures quality control.
+SMS/Chat Execution: If the AI is acting as a conversational agent (e.g., responding to inbound messages or initiating SMS outreach):
+For outbound SMS campaigns (like “text all contacts who attended our webinar”), similar to email, loop through contacts and send via conversations/messages with type SMS. The AI should respect opt-out statuses (HighLevel likely manages DND contacts; perhaps an error or a field in contact indicates if texting is allowed – AI should check that to avoid compliance issues).
+For responsive chat (AI as a chatbot on website or via Twilio number): This involves listening to incoming messages. HighLevel would send inbound messages via webhooks to the AI. Upon receiving an inbound message event (via conversations/messages/inbound or via a webhook payload), the AI would process it with its language model and then respond by calling the send message endpoint. It can use the typing indicator endpoint to simulate human-like responding delay​
+UNPKG.COM
+. Essentially, the AI becomes an automated user in the HighLevel conversations. HighLevel distinguishes AI agent messages possibly by userId or an “AI” flag – not sure if the API provides that, but the typing endpoint explicitly mentions Agent/AI-Bot, which suggests HighLevel knows about AI bots and might label them in the UI.
+The AI should also be able to handle media in SMS (MMS). Using the attachments field in message body, it can send links to images or documents. If the user asks for a PDF brochure, the AI can upload the PDF and send the link in SMS, all via API.
+UI/UX: If the AI is running in the background, ensure transcripts of AI-human conversations are visible to human agents in HighLevel (they will be, since AI is just another message in the conversation). Possibly, mark the AI messages with a special tag (maybe by using a specific user or including “[AI]” in the message content) so it’s transparent. If the AI gets stuck, it might flag a human to intervene (this could be done by assigning the conversation to a human user via update-conversation endpoint).
+Blog Post Execution: When the AI has content for a blog:
+It will use POST /blogs/posts to create the article​
+UNPKG.COM
+. Before that, it needs a few things: a unique slug (it can derive from title and check via url-slug-exists​
+UNPKG.COM
+), an author ID (maybe default to the first author if multiple), and any category IDs relevant. The content should be prepared in HTML. The AI likely can generate Markdown and convert to HTML or generate HTML directly. It should also produce a meta description and potentially a featured image. If an image is needed, it might integrate with an image generation service (not part of this repository) and then host that image – perhaps uploading to the HighLevel media library if an endpoint exists (the medias endpoint might allow uploading images to the library).
+After the post is created, the AI could optionally trigger a social post about it: e.g., use the returned post URL (if available via the API or known pattern) and include that in a Facebook post by calling the social posting API. This cross-channel promotion is something an AI can coordinate well.
+UI/UX: Likely, the blog content should be reviewed by the user before publishing. The AI might create the post as a draft (if the API supports a status field – there is status in CreateBlogPostParams which might allow “draft” vs “published”​
+UNPKG.COM
+). If so, the AI can set status to draft and alert the user: “I’ve written a 500-word blog post about XYZ. Please review it here: [link].” The user can then publish it via the HighLevel UI or instruct the AI to publish (which would entail an update call to set it live). This ensures quality and that the client remains in control of outward-facing content.
+5. Monitoring and Adaptation:
+Once actions are executed, the AI should monitor the results using the API, closing the feedback loop:
+Check if scheduled posts actually got published (maybe later on, call GET /social-media-posting/{locationId}/posts/list to see status, or listen for a webhook if HighLevel provides one on post publish).
+Monitor email/SMS replies: using Conversations API to see if contacts responded. If they did, the AI can continue the conversation (for a chatbot use-case) or notify a human team if it’s something needing human touch (maybe based on sentiment or complexity).
+Track conversions: If the AI can see opportunities moving to “Won” in the pipeline (GET /opportunities to see status changes​
+UNPKG.COM
+), or see appointments booked (GET /calendars/events), it can attribute those to its campaigns. While not trivial, an advanced AI could adjust its strategy based on what’s working (e.g., “My SMS outreach got 5 replies, but emails got none – focus more on SMS for this campaign”).
+The repository’s endpoints allow for this monitoring. For example, after an email blast, the AI could query GET /conversations/messages/{id} for each message it sent to see delivery status or errors​
+UNPKG.COM
+. If an SMS failed (maybe due to a bad number), the AI sees an error in the response or a status update via update-message-status endpoint​
+UNPKG.COM
+, and could take note to correct the number or mark that contact.If the AI has access to analytics (not clearly shown in these endpoints – e.g., email open/click rates might come via conversation events or not at all via API), it might incorporate that too. HighLevel does have analytics, but those might not be exposed in v2 API yet. The AI might instead use surrogate measures, like “reply means engagement” or use link tracking through the links endpoints if available to see if someone clicked (there’s a links module which might relate to tracking links in emails or SMS).6. User Interface and Experience Considerations:
+Even though the AI operates automatically, the user (agency or client) will want oversight and the ability to guide the AI. Some UX implications and how the framework supports them:
+Transparency: Every action the AI takes via the API should be logged and possibly presented to the user in an Activity Feed. For instance, if the AI sends an email, log “AI sent Email to [Contact Name] at 10:00 AM.” Because the actions are actually happening in HighLevel, many will also reflect in HighLevel’s own system (e.g., that email will show under that contact’s conversation, the blog post will appear in the site). So a lot of transparency comes for free. However, consolidating it in the AI’s dashboard is useful. The AI can store the IDs of content it created and show statuses (using the API to fetch updates).
+Control and Override: Users should be able to pause or stop the AI’s actions. If the AI scheduled a post or email and the user changes their mind, they should have time to cancel. The framework allows this: e.g., call cancel-scheduled-message for SMS/email if not yet sent​
+UNPKG.COM
+, or delete a scheduled social post​
+UNPKG.COM
+. Implement UI buttons for “Cancel” next to scheduled items, which trigger the appropriate delete API call via the SDK.
+Content Editing: Before publishing content (emails, blogs, social posts), a review step can be in the UI. You might have a content editor where the AI’s drafted content is displayed and the user can edit text or images. Since the AI content is just data until posted, you can hold off calling the API until after approval. Or post as draft (like blog draft) and let user edit in HighLevel UI itself. The dynamic here is up to the product design – either fully autonomous or human-in-the-loop. The repository’s API gives you the flexibility for both. For autonomy, ensure the AI’s content quality is high (maybe integrate a grammar checker or have the AI critique itself before posting).
+Multi-channel Coordination: The user experience should reflect that the AI is managing multiple channels. A calendar view of scheduled emails/SMS/posts could be useful. The AI can fill that calendar by pulling scheduled items via API (social posts have scheduleDate, scheduled messages have timestamp). This helps the user visualize the AI’s plan. It also prevents collisions (the AI can avoid scheduling an email blast the same hour as a big SMS campaign if it “sees” both on the calendar).
+Feedback to AI: Provide ways for the user to give feedback. If the AI’s email copy wasn’t good, the user might say “regenerate” or “improve tone”. This feedback isn’t directly about the repository, but it triggers the AI to come up with new content, which then again gets sent via the same endpoints. Over time, the AI could learn preferences (e.g., user always edits the intro paragraph – maybe the AI adapts next time). Storing preferences or past edits could be done on your side, not via HighLevel API (unless you, say, store notes in a custom field on a contact or a dummy contact). But highlevel API does have custom values and notes for contacts – an innovative use might be the AI storing some config in a contact or company custom field so it’s accessible via API anywhere. This is speculative, but shows how one might creatively use the platform’s data storage to keep AI state.
+7. Scaling to Full Agency Operations:
+As the AI system proves effective, you might onboard multiple client sub-accounts. Using the saas-api endpoints, the AI can even automate parts of provisioning. For example, if a new client signs up, the AI (with an agency-level key) can call POST /saas-api/company (if such exists) to create a new location, or use snapshots to set up their funnels and templates (snapshots endpoints to deploy a pre-made setup). Then it can immediately start running marketing for that client. This is how an agency could theoretically let an AI handle a lot of the grunt work of onboarding and marketing execution. The types and endpoints for SaaS and snapshots​
+UNPKG.COM
+​
+UNPKG.COM
+ enable the AI to treat the HighLevel platform itself as part of its toolkit (not just the marketing features, but the meta-level of creating accounts or copying configurations).At each step, the key is that the AI’s decisions are implemented through concrete API calls to HighLevel via this repository’s SDK. The division of labor is clear: the AI (powered by LLMs and your logic) decides what to do and creates content, and the SDK/client executes how to do it in HighLevel. This repository essentially turns HighLevel into an extension of the AI – a set of actuators and sensors in the marketing domain.To illustrate a small end-to-end example: “AI Social Media Manager for a Week” – The AI could plan a week’s worth of posts:
+It picks 5 topics (one per weekday).
+Generates post copy and maybe an image idea for each.
+For each, calls create-post with scheduleDate set for the respective date​
+UNPKG.COM
+. It gets back an ID and confirms scheduling.
+If the user checks in, they see those scheduled posts. Maybe they request an edit on Wednesday’s post – the AI can catch that (through UI event) and call edit-post with the new content​
+UNPKG.COM
+.
+Throughout the week, the AI could use GET posts to ensure Monday’s post went out and perhaps fetch any comments or responses via social (though replying to social comments might be outside GHL API scope).
+If something changes (say a sudden event that requires a new post), the user or AI can insert a new one, and perhaps reschedule one of the planned ones (via update or by deleting and recreating on a different date).
+By following this strategy, we ensure that the AI-driven system fully leverages the repository:
+We understand where everything lives (endpoints in src/endpoints/generated and their use cases),
+We use the type definitions in src/types/generated to construct correct payloads and interpret responses,
+We rely on src/utils for hassle-free auth and standardized interactions,
+We plan with the awareness of HighLevel’s capabilities and limitations.
+Conclusion: This repository essentially acts as the bridge between the AI’s intelligence and the HighLevel marketing platform’s power. With a clear map of endpoints by marketing function (social, email, SMS/chat, blog, etc.) and the underlying data structures, we can confidently build an AI agent that executes campaigns across all these channels. The AI can create content, then call the appropriate endpoint to post it – whether it's scheduling a social media update, sending an email or text, or publishing a blog entry. The structured approach of the code (with strong typing and modular endpoints) reduces errors and makes the AI’s actions predictable and auditable.By following the implementation strategy above – authenticate, read context, decide & generate, execute via endpoints, and monitor results – we cover the full lifecycle of marketing automation. The end result is a system where the AI and HighLevel work in concert: HighLevel provides the execution engine (via this repository’s interface), and the AI provides the creative and decision engine, together functioning as a true AI-driven marketing agency.
